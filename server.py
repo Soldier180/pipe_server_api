@@ -23,8 +23,8 @@ class Server(Flask):
         self.provide_automatic_option = False
         # self.add_url_rule('/video', None, self.get_video_source, methods = ['GET'])
         self.add_url_rule('/settings', None, self.get_settings, methods=['GET'])
-        self.add_url_rule('/test_connection', None, self.test_connection, methods=['GET'])
         self.add_url_rule('/settings', None, self.settings_upd, methods=['PATCH'])
+        self.add_url_rule('/test_connection', None, self.test_connection, methods=['GET'])
 
         # self.add_url_rule('/api', None, self.endpoint_chat, methods=['POST'])
 
@@ -36,7 +36,7 @@ class Server(Flask):
 
 
     def test_connection(self):
-        return jsonify({True})
+        return jsonify({"status" : True})
 
     def get_video_source(self):
         res = {'video_link':"udp:localhost:12345"
