@@ -5,7 +5,7 @@ config.read('config.ini')
 import requests
 from requests.structures import CaseInsensitiveDict
 host, port = config['WEB_API']['host'], int(config['WEB_API']['port'])
-url = "http://"+ host +":" + str(port)
+url = "https://32be-194-146-228-24.eu.ngrok.io"#"http://"+ host +":" + str(port)
 
 ###GET connection_test
 print("-GET- TEST CONNECTION")
@@ -38,7 +38,8 @@ data = {"variants": {
                     "truck_type": ["type1", "type2", "type3"],
                     "show_dist_counter": [True, False],
                     "distance": ["ft", "m"],
-                    "inspection_folder": ""},
+                    "inspection_folder": "",
+                    "clicks_per_foot" : ""},
                "settings": {"video_input": "",
                     "deferred_overlay": True,
                     "serial_port": "",
@@ -46,10 +47,11 @@ data = {"variants": {
                     "truck_type": "",
                     "show_dist_counter": False,
                     "distance": "",
-                    "inspection_folder": ""}
+                    "inspection_folder": "",
+                    "clicks_per_foot" : 1000}
         }
 
-
+data = {'video_input': 'dfgdf'}
 from flask import jsonify
 import json
 data2 = json.dumps(data).encode('utf-8')

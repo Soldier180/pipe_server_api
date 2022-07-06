@@ -10,7 +10,8 @@ class SettingsObj:
             'truck_type': "",
             'show_dist_counter': False,
             'distance': "",
-            'inspection_folder': ""}}
+            'inspection_folder': "",
+            'clicks_per_foot' : ""}}
 
 
     # {'video_settings': {'video_input': ["Hauppauge Cx23100 Video Capture", "source2"],

@@ -3,8 +3,89 @@ import configparser
 from flask import Flask, request, jsonify
 from SettingsObj import SettingsObj
 import json
+from flask import Response
+from flask_cors import CORS
+import threading
+import cv2
 config = configparser.ConfigParser()
 config.read('config.ini')
+# config stream
+import subprocess as sp
+from videostream import WebcamVideoStream
+
+cmd = ['ffmpeg',
+       '-re',
+       '-stream_loop', '-1',
+       '-i', config["VIDEO"]["file_location"],
+       '-preset', 'ultrafast',
+       '-vcodec', 'mpeg4',
+       '-tune', 'zerolatency',
+       '-b', '900k',
+       '-f', 'h264',
+       config["VIDEO"]["stream_address"]]
+
+# cmd = ['ffmpeg',
+#         '-f', 'dshow',#'-re',
+#         #'-stream_loop',  '-1',
+#         '-i', 'video=HD Camera',#config["VIDEO"]["file_location"],
+#        '-preset', 'ultrafast',
+#         '-vcodec', 'mpeg4',
+#        '-tune', 'zerolatency',
+#        '-b', '100k',
+#        '-f',  'h264',
+#        config["VIDEO"]["stream_address"]]
+
+def start_stream():
+    sp.run(cmd)
+
+video_stream_th = threading.Thread(target=start_stream, args=())
+# video_stream_th.daemon = True
+
+video_stream_th.start()
+import time
+time.sleep(3)
+
+
+outputFrame = None
+lock = threading.Lock()
+
+vs = WebcamVideoStream(src=config["VIDEO"]["stream_address"]).start()
+time.sleep(1.0)
+
+
+def img_processing():
+    global vs, outputFrame, lock
+    # loop over frames from the video stream
+    while True:
+        frame = vs.read()
+        if not vs.grabbed:
+            continue
+        # lock
+        with lock:
+            outputFrame = frame.copy()
+
+
+def generate():
+    # grab global references to the output frame and lock variables
+    global outputFrame, lock
+    # loop over frames from the output stream
+    while True:
+        # wait until the lock is acquired
+        with lock:
+            # check if the output frame is available, otherwise skip
+            # the iteration of the loop
+            if outputFrame is None:
+                continue
+            # encode the frame in JPEG format
+            (flag, encodedImage) = cv2.imencode(".jpg", outputFrame)
+            # ensure the frame was successfully encoded
+            if not flag:
+                continue
+        # yield the output frame in the byte format
+        yield (b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' +
+               bytearray(encodedImage) + b'\r\n')
+
+
 
 
 class Server(Flask):
@@ -21,7 +102,7 @@ class Server(Flask):
 
     def define_uri(self):
         self.provide_automatic_option = False
-        # self.add_url_rule('/video', None, self.get_video_source, methods = ['GET'])
+        self.add_url_rule('/videostream', None, self.video_feed)
         self.add_url_rule('/settings', None, self.get_settings, methods=['GET'])
         self.add_url_rule('/settings', None, self.settings_upd, methods=['PATCH'])
         self.add_url_rule('/test_connection', None, self.test_connection, methods=['GET'])
@@ -52,7 +133,8 @@ class Server(Flask):
                     'truck_type': ["type1", "type2", "type3"],
                     'show_dist_counter': [True, False],
                     'distance': ['ft', 'm'],
-                    'inspection_folder': ""},
+                    'inspection_folder': "",
+                    'clicks_per_foot' : ""},
                'settings': {
                     'video_input': self.setting_obj.settings_dict['settings']['video_input'],
                     'deferred_overlay': self.setting_obj.settings_dict['settings']['deferred_overlay'],
@@ -61,7 +143,8 @@ class Server(Flask):
                     'truck_type': self.setting_obj.settings_dict['settings']['truck_type'],
                     'show_dist_counter': self.setting_obj.settings_dict['settings']['show_dist_counter'],
                     'distance': self.setting_obj.settings_dict['settings']['distance'],
-                    'inspection_folder': self.setting_obj.settings_dict['settings']['inspection_folder']
+                    'inspection_folder': self.setting_obj.settings_dict['settings']['inspection_folder'],
+                    'clicks_per_foot': self.setting_obj.settings_dict['settings']['clicks_per_foot'],
                 }
         }
 
@@ -72,10 +155,10 @@ class Server(Flask):
         print("args :", request.args)
         body = request.get_json()
         print(body)
-        for k, v in body['settings'].items():
-            if body['settings'][k] != self.setting_obj.settings_dict['settings'][k]:
+        for k, v in body.items():
+            if body[k] != self.setting_obj.settings_dict['settings'][k]:
                 #todo set hardware settings
-                self.setting_obj.settings_dict['settings'][k] = body['settings'][k]
+                self.setting_obj.settings_dict['settings'][k] = body[k]
 
         # {'video_settings': {'video_input': ["s1", "s2"],
         #                     'deferred_overlay': True},
@@ -91,6 +174,12 @@ class Server(Flask):
         # }
         return "ok"
 
+    def video_feed(self):
+        return Response(generate(),
+                        mimetype="multipart/x-mixed-replace; boundary=frame")
+
+
+
     # def endpoint_chat(self):
     #
     #     print("args :",request.args)
@@ -102,8 +191,15 @@ class Server(Flask):
 
 
 def main():
+    t = threading.Thread(target=img_processing, args=())
+    t.daemon = True
+    t.start()
     host, port = config['WEB_API']['host'], int(config['WEB_API']['port'])
     server = Server(host, 'ai_server')
+    cors = CORS(server)
+    server.config['CORS_HEADERS'] = 'Content-Type'
+
+    # CORS(server)
     print("server run")
     server.run(host=host, port=port, threaded=True)
 
