@@ -1,9 +1,11 @@
 import os
 import pickle
+from devices_parcer import get_devices
+
 class SettingsObj:
     def __init__(self):
         # todo read from db
-        self.settings_dict = {'settings': {'video_input': "",
+        self.settings_dict = {'settings': {'video_input': get_devices()[0],
             'deferred_overlay': False,
             'serial_port': "",
             'baud_rate': 0,
